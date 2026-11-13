@@ -223,8 +223,8 @@ int main(void)
     char line[INPUT_LINE_MAX];
 
     /* One-time set-up, then the instructions. */
-    platform_init();
     display_init();
+    platform_init();
     motion_init();
     print_help();
 
