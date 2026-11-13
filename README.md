@@ -20,13 +20,22 @@ run the tests.
 | `src/input.c/.h` | IR remote placeholder; defines the input events |
 | `src/display.c/.h` | TFT placeholder; one function per screen |
 | `src/motion.c/.h` | Movement placeholder |
+| `pc/CMakeLists.txt` | PC build (tables, tests) for Mac/Windows/Linux |
 | `tools/gen_tables.c` | PC program that builds the tables by breadth-first search |
 | `tests/test_solver.c` | PC tests, including thousands of random cubes |
 
-## PC
+## PC (macOS, Windows, Linux)
 
-    make tables    # regenerate src/thistle_tables.h
-    make test      # run the tests (includes the app, driven by input events)
+Only needed to regenerate the tables or run the tests. Needs CMake, Ninja and
+a C compiler (Xcode tools on Mac; MSVC or MinGW on Windows).
+
+    cmake -S pc -B build_pc -G Ninja
+    cmake --build build_pc                          # build everything
+    cmake --build build_pc --target tables          # regenerate src/thistle_tables.h
+    ctest --test-dir build_pc --output-on-failure   # run the tests (includes the app)
+
+If you have `make`, `make`, `make tables` and `make test` do the same.
+On Windows with MSVC, run these from a "Developer PowerShell for VS" so the compiler is found.
 
 ## Pico
 
