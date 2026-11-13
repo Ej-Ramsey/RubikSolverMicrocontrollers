@@ -1,9 +1,10 @@
 # Rubik's Solver – solve logic
 
-Thistlethwaite solver driven by lookup tables stored in the Pico's flash.
-There is no physical build: the cube state is typed over USB serial and the
-answer is printed as a move list. The display and movement layers are
-placeholders only.
+Thistlethwaite solver that runs entirely on the Pico, with its lookup tables
+in flash. No PC is needed at run time: the sticker map is entered with an IR
+remote and every screen is shown on a TFT. The IR, display and movement
+layers are placeholders only; the PC is used just to generate the tables and
+run the tests.
 
 ## Files
 
@@ -14,16 +15,18 @@ placeholders only.
 | `src/coords.c/.h` | Table index ("coordinate") each phase measures |
 | `src/solver.c/.h` | Four-phase solver that follows decreasing table distances |
 | `src/thistle_tables.h` | **Generated** lookup tables (about 970 KB of flash) |
-| `src/main.c` | Serial console (Pico USB serial or PC terminal) |
-| `src/display.c/.h`, `src/motion.c/.h` | Placeholders, intentionally empty |
+| `src/app.c/.h` | Sticker entry, solving and solution stepping (no hardware, tested on PC) |
+| `src/main.c` | Pico main loop: poll input, update the app, redraw the display |
+| `src/input.c/.h` | IR remote placeholder; defines the input events |
+| `src/display.c/.h` | TFT placeholder; one function per screen |
+| `src/motion.c/.h` | Movement placeholder |
 | `tools/gen_tables.c` | PC program that builds the tables by breadth-first search |
 | `tests/test_solver.c` | PC tests, including thousands of random cubes |
 
 ## PC
 
     make tables    # regenerate src/thistle_tables.h
-    make test      # run the tests
-    make run       # start the console
+    make test      # run the tests (includes the app, driven by input events)
 
 ## Pico
 
@@ -32,8 +35,24 @@ Open this folder with the Raspberry Pi Pico VS Code extension and build, or:
     cmake -S . -B build -G Ninja
     cmake --build build
 
-Flash `build/RubiksSolver.uf2`, open the USB serial port, and type either a
-scramble (`R U2 F' L D2 B`) or 54 stickers (order described in `src/cube.h`).
+Flash `build/RubiksSolver.uf2`. The Pico starts on its own; no serial
+connection is needed. To watch state changes while the IR and TFT code is
+being written, configure with `-DRUBIKS_DEBUG_USB=ON` and open the USB serial
+port (output only).
+
+## Using it
+
+| Screen | Buttons (input events) |
+| --- | --- |
+| Editing | a colour paints the selected sticker and moves on; NEXT / PREV move one sticker; NEXT_FACE / PREV_FACE jump a face; BACK erases the previous sticker; OK solves; CLEAR starts over |
+| Error | any button returns to editing (stickers kept) |
+| Solution | NEXT / PREV step through the moves; OK or BACK returns to editing |
+
+Stickers are entered in the order shown in `src/cube.h` (faces U R F D L B,
+each read left to right, top to bottom). A blank cube has only the centres
+filled in (U white, R red, F green, D yellow, L orange, B blue); repaint them
+if the cube is held differently. The IR driver decides which remote button
+produces each event (`src/input.h`).
 
 ## Phases
 

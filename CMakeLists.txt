@@ -1,4 +1,5 @@
-# Rubik's Solver - Pico build (solve logic only, driven over USB serial)
+# Rubik's Solver - Pico build. Runs standalone: IR remote in, TFT out,
+# lookup tables in flash. No USB serial connection is needed.
 
 cmake_minimum_required(VERSION 3.13)
 
@@ -31,24 +32,30 @@ pico_sdk_init()
 
 add_executable(RubiksSolver
     src/main.c
+    src/app.c           # sticker entry, solving, solution stepping (no hardware)
     src/cube.c
     src/coords.c
     src/solver.c        # includes the generated lookup tables (src/thistle_tables.h)
-    src/display.c       # placeholder
+    src/input.c         # placeholder: IR remote
+    src/display.c       # placeholder: TFT
     src/motion.c        # placeholder
 )
-
-# Tells main.c to use the Pico's USB serial and timer instead of the PC's.
-target_compile_definitions(RubiksSolver PRIVATE PICO_BUILD=1)
 
 target_include_directories(RubiksSolver PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
 
 pico_set_program_name(RubiksSolver "RubiksSolver")
 pico_set_program_version(RubiksSolver "1.0")
 
-# The console runs over USB serial, so the Pico only needs its USB cable.
+# The Pico runs on its own, so stdio is off. Turn this on to print state
+# changes over USB serial while developing (output only, never required).
+option(RUBIKS_DEBUG_USB "Print debug output over USB serial" OFF)
+if (RUBIKS_DEBUG_USB)
+    target_compile_definitions(RubiksSolver PRIVATE RUBIKS_DEBUG_LOG=1)
+    pico_enable_stdio_usb(RubiksSolver 1)
+else()
+    pico_enable_stdio_usb(RubiksSolver 0)
+endif()
 pico_enable_stdio_uart(RubiksSolver 0)
-pico_enable_stdio_usb(RubiksSolver 1)
 
 target_link_libraries(RubiksSolver pico_stdlib)
 

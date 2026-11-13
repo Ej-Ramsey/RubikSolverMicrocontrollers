@@ -1,7 +1,8 @@
 /*
  * test_solver.c  (runs on the PC)
  *
- * Checks the cube model, the validator and the solver. The main test solves
+ * Checks the cube model, the validator, the solver and the app (sticker
+ * entry driven by input events, as the IR remote will). The main test solves
  * many random cubes and confirms that applying each answer really gives a
  * solved cube.
  *
@@ -11,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "app.h"
 #include "cube.h"
 #include "rubiks_constants.h"
 #include "solver.h"
@@ -194,6 +196,93 @@ static void test_validation(void)
     CHECK(solver_solve(&cube, &solution) == SOLVE_ERR_INVALID_CUBE, "solver rejects bad cube");
 }
 
+/* Colour that the app expects for a face letter on a standard cube. */
+static InputEvent color_event_for_face(char face)
+{
+    switch (face) {
+    case 'U': return INPUT_COLOR_WHITE;
+    case 'R': return INPUT_COLOR_RED;
+    case 'F': return INPUT_COLOR_GREEN;
+    case 'D': return INPUT_COLOR_YELLOW;
+    case 'L': return INPUT_COLOR_ORANGE;
+    default:  return INPUT_COLOR_BLUE;
+    }
+}
+
+/* Drives the app with input events only, as the IR remote will. */
+static void test_app(void)
+{
+    App app;
+    Cube cube;
+    char stickers[NUM_STICKERS + 1];
+
+    /* A blank cube cannot be solved: stickers are missing. */
+    app_init(&app);
+    CHECK(app.mode == APP_EDITING && app.cursor == 0, "app starts editing at sticker 0");
+    CHECK(!app_handle_input(&app, INPUT_NONE), "no event, no redraw");
+    app_handle_input(&app, INPUT_OK);
+    CHECK(app.mode == APP_ERROR, "blank cube is rejected");
+    CHECK(strstr(app.message, "U1") != NULL, "error names the first missing sticker");
+    app_handle_input(&app, INPUT_NEXT);
+    CHECK(app.mode == APP_EDITING, "any button dismisses the error");
+
+    /* Cursor movement and backspace. */
+    app_handle_input(&app, INPUT_PREV);
+    CHECK(app.cursor == NUM_STICKERS - 1, "PREV wraps to the last sticker");
+    app_handle_input(&app, INPUT_NEXT_FACE);
+    CHECK(app.cursor == 0, "NEXT_FACE wraps to the first face");
+    app_handle_input(&app, INPUT_NEXT_FACE);
+    CHECK(app.cursor == STICKERS_PER_FACE, "NEXT_FACE goes to R1");
+    app_handle_input(&app, INPUT_PREV_FACE);
+    CHECK(app.cursor == 0, "PREV_FACE goes back to U1");
+    app_handle_input(&app, INPUT_COLOR_RED);
+    CHECK(app.stickers[0] == COLOR_RED && app.cursor == 1, "painting advances the cursor");
+    app_handle_input(&app, INPUT_BACK);
+    CHECK(app.stickers[0] == COLOR_UNSET && app.cursor == 0, "BACK erases the last sticker");
+
+    /* Enter the cube scrambled by R U2 F' L D2 B, sticker by sticker. */
+    uint8_t scramble[6];
+    int count = moves_parse("R U2 F' L D2 B", scramble, 6);
+    cube_reset(&cube);
+    cube_apply_moves(&cube, scramble, (size_t)count);
+    cube_to_stickers(&cube, stickers);
+    for (uint8_t i = 0; i < NUM_STICKERS; i++) {
+        app_handle_input(&app, color_event_for_face(stickers[i]));
+    }
+    CHECK(app.cursor == NUM_STICKERS - 1, "cursor stops on the last sticker");
+
+    app_handle_input(&app, INPUT_OK);
+    CHECK(app.mode == APP_SOLVED, "entered cube is solved");
+    CHECK(app.step == 0 && app.solution.length > 0, "solution starts at step 0");
+
+    /* Stepping through every move ends on a solved cube. */
+    for (uint8_t i = 0; i < app.solution.length; i++) {
+        CHECK(app_handle_input(&app, INPUT_NEXT), "NEXT steps forward");
+    }
+    CHECK(!app_handle_input(&app, INPUT_NEXT), "NEXT stops at the end");
+    bool solved = true;
+    for (uint8_t i = 0; i < NUM_STICKERS; i++) {
+        uint8_t center = app.stickers[(i / STICKERS_PER_FACE) * STICKERS_PER_FACE + CENTER_STICKER_OFFSET];
+        if (app.shown[i] != center) {
+            solved = false;
+        }
+    }
+    CHECK(solved, "shown cube is solved after the last move");
+
+    /* Back to editing keeps the entry; an impossible change is rejected. */
+    app_handle_input(&app, INPUT_OK);
+    CHECK(app.mode == APP_EDITING, "OK returns to editing");
+    uint8_t swap = app.stickers[0];
+    app.stickers[0] = app.stickers[2];
+    app.stickers[2] = swap;
+    if (app.stickers[0] != app.stickers[2]) {
+        app_handle_input(&app, INPUT_OK);
+        CHECK(app.mode == APP_ERROR, "swapped stickers are rejected");
+    }
+    app_handle_input(&app, INPUT_CLEAR);
+    CHECK(app.mode == APP_EDITING && app.stickers[0] == COLOR_UNSET, "CLEAR starts over");
+}
+
 /* Solves `cube_count` random cubes and confirms every answer by applying
  * it. Also gathers statistics on solution lengths. */
 static void test_solver(unsigned long cube_count)
@@ -248,6 +337,7 @@ int main(int argc, char **argv)
     srand(RANDOM_SEED);
     test_moves();
     test_validation();
+    test_app();
     test_solver(cube_count);
 
     if (failures == 0) {

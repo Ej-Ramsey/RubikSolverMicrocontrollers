@@ -94,10 +94,10 @@
 #define MAX_SOLUTION_MOVES      64  /* Room for the longest possible solution (worst case 45) */
 
 /* ------------------------------------------------------------------ */
-/* Text input / output                                                */
+/* Sticker entry (IR remote) and messages (TFT)                       */
 /* ------------------------------------------------------------------ */
-#define INPUT_LINE_MAX          256 /* Longest line accepted from the serial console         */
-#define MESSAGE_MAX             96  /* Longest validation / error message                    */
-#define SCRAMBLE_MAX_MOVES      100 /* Longest scramble accepted from the serial console     */
+#define NUM_COLORS              6    /* Sticker colours: white, yellow, red, orange, green, blue */
+#define COLOR_UNSET             0xFF /* Sticker colour not entered yet                           */
+#define MESSAGE_MAX             96   /* Longest validation / error message                       */
 
 #endif /* RUBIKS_CONSTANTS_H */
