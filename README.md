@@ -16,14 +16,22 @@ placeholders only.
 | `src/thistle_tables.h` | **Generated** lookup tables (about 970 KB of flash) |
 | `src/main.c` | Serial console (Pico USB serial or PC terminal) |
 | `src/display.c/.h`, `src/motion.c/.h` | Placeholders, intentionally empty |
+| `pc/CMakeLists.txt` | PC build (tables, tests, console) for Mac/Windows/Linux |
 | `tools/gen_tables.c` | PC program that builds the tables by breadth-first search |
 | `tests/test_solver.c` | PC tests, including thousands of random cubes |
 
-## PC
+## PC (macOS, Windows, Linux)
 
-    make tables    # regenerate src/thistle_tables.h
-    make test      # run the tests
-    make run       # start the console
+Needs CMake, Ninja and a C compiler (Xcode tools on Mac; MSVC or MinGW on Windows).
+
+    cmake -S pc -B build_pc -G Ninja
+    cmake --build build_pc                          # build everything
+    cmake --build build_pc --target tables          # regenerate src/thistle_tables.h
+    ctest --test-dir build_pc --output-on-failure   # run the tests
+    build_pc/rubiks                                 # start the console (build_pc\\rubiks.exe on Windows)
+
+If you have `make`, `make`, `make tables`, `make test` and `make run` do the same.
+On Windows with MSVC, run these from a "Developer PowerShell for VS" so the compiler is found.
 
 ## Pico
 
