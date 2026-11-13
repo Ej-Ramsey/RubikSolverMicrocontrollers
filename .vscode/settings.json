@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "/Users/elijahdavidramsey/Desktop/micro/labs/RubikSolverMicrocontrollers/RubikSolver"
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.generator": "Ninja"
 }

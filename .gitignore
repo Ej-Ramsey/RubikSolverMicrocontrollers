@@ -1,0 +1,11 @@
+# Build output (machine-specific absolute paths / binaries)
+build/
+build_pc/
+cmake-build-*/
+RubikSolver/
+compile_commands.json
+CMakeUserPresets.json
+
+# OS junk
+.DS_Store
+Thumbs.db
