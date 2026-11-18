@@ -100,4 +100,12 @@
 #define MESSAGE_MAX             96  /* Longest validation / error message                    */
 #define SCRAMBLE_MAX_MOVES      100 /* Longest scramble accepted from the serial console     */
 
+/* ------------------------------------------------------------------ */
+/* Display map                                                */
+/* ------------------------------------------------------------------ */
+#define MAP_WIDTH               12 /* Width of the map grid */
+#define MAP_HEIGHT              9  /* Height of the map grid */
+#define FACE_LENGTH             3  /* Length of one face square */
+#define ST7735_ORANGE           0xFD20
+
 #endif /* RUBIKS_CONSTANTS_H */
