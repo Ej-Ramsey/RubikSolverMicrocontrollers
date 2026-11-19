@@ -29,9 +29,9 @@ void display_init(void)
     drawText(10, 20, "Hello World", ST7735_WHITE, ST7735_BLACK, 1);
     drawText(10, 40, "RG GB", ST7735_WHITE, ST7735_BLACK, 1);
 
-    char initCube[NUM_STICKERS + 1] = "UUUUUUUUULLLLLLLLLFFFFFFFFFRRRRRRRRRBBBBBBBBBDDDDDDDDD";
-
-    // TODO: Finish display output
+    Cube initCube;
+    cube_reset(&initCube);
+    display_show_cube(&initCube);
 }
 
 void display_show_cube(const Cube *cube)
@@ -41,22 +41,32 @@ void display_show_cube(const Cube *cube)
     cube_to_stickers(cube, stickers);
     display_stickers_to_map(stickers, map);
 
-    // TODO: Finish display output
+    // Draw each sticker on the map
+    for (int x = 0; x < MAP_WIDTH; x++) {
+        for (int y = 0; y < MAP_HEIGHT; y++) {
+            if (map[y][x] != 0) {
+                // 128 x 160 display
+                fillRect(x * (STICKER_SIZE + 1) + MAP_OFFSET_X,
+                         y * (STICKER_SIZE + 1) + MAP_OFFSET_Y,
+                         STICKER_SIZE, STICKER_SIZE, map[y][x]);
+            }
+        }
+    }
 }
 
 void display_stickers_to_map(const char stickers[NUM_STICKERS + 1], uint16_t map[MAP_HEIGHT][MAP_WIDTH])
 {
     // Blank map to make filling of the array easier
     const uint8_t blankMap[MAP_HEIGHT][MAP_WIDTH] = {
-    {NULL, NULL, NULL, 1,    1,    1, NULL, NULL, NULL, NULL, NULL, NULL},
-    {NULL, NULL, NULL, 1,    1,    1, NULL, NULL, NULL, NULL, NULL, NULL},
-    {NULL, NULL, NULL, 1,    1,    1, NULL, NULL, NULL, NULL, NULL, NULL},
-    {1,    1,    1,    1,    1,    1, 1,    1,    1,    1,    1,    1   },   
-    {1,    1,    1,    1,    1,    1, 1,    1,    1,    1,    1,    1   },   
-    {1,    1,    1,    1,    1,    1, 1,    1,    1,    1,    1,    1   },   
-    {NULL, NULL, NULL, 1,    1,    1, NULL, NULL, NULL, NULL, NULL, NULL},
-    {NULL, NULL, NULL, 1,    1,    1, NULL, NULL, NULL, NULL, NULL, NULL},
-    {NULL, NULL, NULL, 1,    1,    1, NULL, NULL, NULL, NULL, NULL, NULL}
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0}
     };
 
     uint8_t stickerIndex = 0;
@@ -68,8 +78,8 @@ void display_stickers_to_map(const char stickers[NUM_STICKERS + 1], uint16_t map
             for (int8_t x = 0; x < FACE_LENGTH; x++) {
                 for (int8_t y = 0; y < FACE_LENGTH; y++) {
                     uint16_t *location = &map[(facey * 3) + y][(facex * 3) + x];
-                    if (blankMap[(facey * 3) + y][(facex * 3) + x] == NULL) {
-                        *location = NULL;
+                    if (blankMap[(facey * 3) + y][(facex * 3) + x] == 0) {
+                        *location = 0;
                     }
                     else if (blankMap[(facey * 3) + y][(facex * 3) + x] == 1) {
                         if (stickers[stickerIndex] == 'U') {
@@ -109,8 +119,8 @@ void display_map_to_stickers(const uint16_t map[MAP_HEIGHT][MAP_WIDTH], char sti
             // Inner two loops go through all 9 squares of each face
             for (int8_t x = 0; x < FACE_LENGTH; x++) {
                 for (int8_t y = 0; y < FACE_LENGTH; y++) {
-                    uint16_t *location = &map[(facey * 3) + y][(facex * 3) + x];
-                    if (*location != NULL) {
+                    const uint16_t *location = &map[(facey * 3) + y][(facex * 3) + x];
+                    if (*location != 0) {
                         if (*location == ST7735_WHITE) {
                             stickers[stickerIndex] = 'U';
                         }
