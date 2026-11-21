@@ -15,16 +15,6 @@
 #include "ST7735_TFT.h"
 #include "hw.h"
 
-/* Screen colour of each StickerColor (same order as app.h). */
-static const uint16_t COLOR_RGB565[NUM_COLORS] = {
-    ST7735_WHITE,   /* COLOR_WHITE  */
-    ST7735_YELLOW,  /* COLOR_YELLOW */
-    ST7735_RED,     /* COLOR_RED    */
-    ST7735_ORANGE,  /* COLOR_ORANGE */
-    ST7735_GREEN,   /* COLOR_GREEN  */
-    ST7735_BLUE     /* COLOR_BLUE   */
-};
-
 /* Top-left square of each face on the map, in sticker-string order
  * (U R F D L B), as {row, column}. Matches the layout drawn in cube.h. */
 static const uint8_t FACE_ORIGIN[NUM_FACES][2] = {
@@ -53,26 +43,96 @@ static void sticker_cell(uint8_t index, uint8_t *row, uint8_t *col)
 static uint8_t cell_x(uint8_t col) { return (uint8_t)(col * (STICKER_SIZE + 1) + MAP_OFFSET_X); }
 static uint8_t cell_y(uint8_t row) { return (uint8_t)(row * (STICKER_SIZE + 1) + MAP_OFFSET_Y); }
 
-/* Fills the map with the screen colour of each sticker; 0 = no sticker. */
-static void colors_to_map(const uint8_t stickers[NUM_STICKERS], uint16_t map[MAP_HEIGHT][MAP_WIDTH])
+/* Face letter for each StickerColor, so display_stickers_to_map() can take
+ * the app's colours (white U, red R, green F, yellow D, orange L, blue B). */
+static const char COLOR_LETTER[NUM_COLORS] = {
+    'U',    /* COLOR_WHITE  */
+    'D',    /* COLOR_YELLOW */
+    'R',    /* COLOR_RED    */
+    'L',    /* COLOR_ORANGE */
+    'F',    /* COLOR_GREEN  */
+    'B'     /* COLOR_BLUE   */
+};
+
+static void colors_to_letters(const uint8_t stickers[NUM_STICKERS], char letters[NUM_STICKERS + 1])
 {
-    for (uint8_t y = 0; y < MAP_HEIGHT; y++) {
-        for (uint8_t x = 0; x < MAP_WIDTH; x++) {
+    for (uint8_t i = 0; i < NUM_STICKERS; i++) {
+        letters[i] = stickers[i] < NUM_COLORS ? COLOR_LETTER[stickers[i]] : '?';
+    }
+    letters[NUM_STICKERS] = '\0';
+}
+
+void display_stickers_to_map(const char stickers[NUM_STICKERS + 1], uint16_t map[MAP_HEIGHT][MAP_WIDTH])
+{
+    // Blank map to make filling of the array easier
+    const uint8_t blankMap[MAP_HEIGHT][MAP_WIDTH] = {
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0}
+    };
+
+    // Squares with no sticker stay black
+    for (int8_t y = 0; y < MAP_HEIGHT; y++) {
+        for (int8_t x = 0; x < MAP_WIDTH; x++) {
             map[y][x] = 0;
         }
     }
-    for (uint8_t i = 0; i < NUM_STICKERS; i++) {
-        uint8_t row, col;
-        sticker_cell(i, &row, &col);
-        map[row][col] = stickers[i] < NUM_COLORS ? COLOR_RGB565[stickers[i]] : COLOR_UNSET_RGB565;
+
+    uint8_t stickerIndex = 0;
+    // Outer loop goes one face at a time in sticker-string order (U R F D L B)
+    for (int8_t face = 0; face < NUM_FACES; face++) {
+        int8_t facey = FACE_ORIGIN[face][0] / 3;
+        int8_t facex = FACE_ORIGIN[face][1] / 3;
+
+        // Inner two loops go through all 9 squares of each face, row by row
+        for (int8_t y = 0; y < FACE_LENGTH; y++) {
+            for (int8_t x = 0; x < FACE_LENGTH; x++) {
+                uint16_t *location = &map[(facey * 3) + y][(facex * 3) + x];
+                if (blankMap[(facey * 3) + y][(facex * 3) + x] == 0) {
+                    *location = 0;
+                }
+                else if (blankMap[(facey * 3) + y][(facex * 3) + x] == 1) {
+                    if (stickers[stickerIndex] == 'U') {
+                        *location = ST7735_WHITE;
+                    }
+                    else if (stickers[stickerIndex] == 'R') {
+                        *location = ST7735_RED;
+                    }
+                    else if (stickers[stickerIndex] == 'F') {
+                        *location = ST7735_GREEN;
+                    }
+                    else if (stickers[stickerIndex] == 'D') {
+                        *location = ST7735_YELLOW;
+                    }
+                    else if (stickers[stickerIndex] == 'L') {
+                        *location = ST7735_ORANGE;
+                    }
+                    else if (stickers[stickerIndex] == 'B') {
+                        *location = ST7735_BLUE;
+                    }
+                    else {
+                        *location = COLOR_UNSET_RGB565;   // not entered yet
+                    }
+                    stickerIndex++;
+                }
+            }
+        }
     }
 }
 
 /* Draws the unfolded cube. */
 static void draw_cube(const uint8_t stickers[NUM_STICKERS])
 {
+    char letters[NUM_STICKERS + 1];
     uint16_t map[MAP_HEIGHT][MAP_WIDTH];
-    colors_to_map(stickers, map);
+    colors_to_letters(stickers, letters);
+    display_stickers_to_map(letters, map);
 
     for (int x = 0; x < MAP_WIDTH; x++) {
         for (int y = 0; y < MAP_HEIGHT; y++) {

@@ -30,4 +30,8 @@ void display_show_message(const char *message);
 void display_show_solution(const uint8_t stickers[NUM_STICKERS],
                            const Solution *solution, uint8_t step);
 
+/* From the TFTDisplay branch (Reese): fills `map` with the screen colour of
+ * each sticker in a face-letter string (U R F D L B order); 0 = no sticker. */
+void display_stickers_to_map(const char stickers[NUM_STICKERS + 1], uint16_t map[MAP_HEIGHT][MAP_WIDTH]);
+
 #endif /* DISPLAY_H */
