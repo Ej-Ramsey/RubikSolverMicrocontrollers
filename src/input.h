@@ -1,7 +1,7 @@
 /*
  * input.h
  *
- * PLACEHOLDER for the IR remote input layer. Nothing is implemented yet.
+ * IR remote input layer (NEC decoder in input.c).
  *
  * The rest of the program never sees IR codes. The IR driver's only job is
  * to decode a button press and hand back one of the abstract events below;

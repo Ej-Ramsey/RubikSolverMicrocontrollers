@@ -38,11 +38,9 @@ add_executable(RubiksSolver
     src/cube.c
     src/coords.c
     src/solver.c        # includes the generated lookup tables (src/thistle_tables.h)
-    src/input.c         # placeholder: IR remote
-    src/display.c       # placeholder: TFT
+    src/input.c         # IR remote (NEC)
+    src/display.c       # TFT (ST7735)
     src/motion.c        # placeholder
-
-    
 )
 
 # TFT (ST7735) pins on SPI1 and library options, plus PICO_BUILD for display.c.
@@ -59,7 +57,7 @@ set(ST7735_COMPILE_DEFINITIONS
     TFT_ENABLE_TEXT
     TFT_ENABLE_SHAPES
 )
-target_compile_definitions(RubiksSolver PRIVATE PICO_BUILD=1 ${ST7735_COMPILE_DEFINITIONS})
+target_compile_definitions(RubiksSolver PRIVATE PICO_BUILD=1 IR_PIN=15 ${ST7735_COMPILE_DEFINITIONS})
 target_compile_definitions(st7735 PRIVATE ${ST7735_COMPILE_DEFINITIONS})
 
 target_include_directories(RubiksSolver PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
@@ -78,6 +76,6 @@ else()
 endif()
 pico_enable_stdio_uart(RubiksSolver 0)
 
-target_link_libraries(RubiksSolver pico_stdlib hardware_spi st7735 hardware_timer)
+target_link_libraries(RubiksSolver pico_stdlib hardware_spi hardware_gpio st7735 hardware_timer)
 
 pico_add_extra_outputs(RubiksSolver)
