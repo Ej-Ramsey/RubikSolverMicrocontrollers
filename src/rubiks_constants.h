@@ -107,8 +107,10 @@
 #define MAP_HEIGHT              9  /* Height of the map grid */
 #define FACE_LENGTH             3  /* Length of one face square */
 #define ST7735_ORANGE           0xFD20
-#define MAP_OFFSET_Y            0
-#define MAP_OFFSET_X            0
-#define STICKER_SIZE            3
+#define MAP_OFFSET_Y            4
+#define MAP_OFFSET_X            4
+#define STICKER_SIZE            9      /* Pixels per sticker (plus a 1 px gap): net is 120 x 90 */
+#define COLOR_UNSET_RGB565      0x4208 /* Dark grey for a sticker not entered yet */
+#define TEXT_TOP                100    /* First pixel row below the cube, for text */
 
 #endif /* RUBIKS_CONSTANTS_H */
