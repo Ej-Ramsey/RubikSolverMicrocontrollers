@@ -100,4 +100,15 @@
 #define COLOR_UNSET             0xFF /* Sticker colour not entered yet                           */
 #define MESSAGE_MAX             96   /* Longest validation / error message                       */
 
+/* ------------------------------------------------------------------ */
+/* Display map                                                */
+/* ------------------------------------------------------------------ */
+#define MAP_WIDTH               12 /* Width of the map grid */
+#define MAP_HEIGHT              9  /* Height of the map grid */
+#define FACE_LENGTH             3  /* Length of one face square */
+#define ST7735_ORANGE           0xFD20
+#define MAP_OFFSET_Y            0
+#define MAP_OFFSET_X            0
+#define STICKER_SIZE            3
+
 #endif /* RUBIKS_CONSTANTS_H */
