@@ -1,0 +1,686 @@
+================================================================================
+                    RUBIK'S SOLVER - CODE WALKTHROUGH
+================================================================================
+
+How to read references: "src/app.c:125" means file src/app.c, line 125.
+"src/app.c:125-141" means lines 125 through 141. Open the file next to this
+one and jump to the line as you read.
+
+Line numbers are correct for the physicalImplementation branch at the time
+this was written. If edits occur, the numbers below it shift, so
+search for the function name if a reference looks off.
+
+
+--------------------------------------------------------------------------------
+CONTENTS
+--------------------------------------------------------------------------------
+   1. The big picture
+   2. The files and what each one does
+   3. Following one solve from start to finish (main.c)
+   4. Reading the IR remote (input.c)
+   5. The app: a state machine (app.c)
+   6. How a cube is stored in memory (cube.h, cube.c)
+   7. Checking that a cube is possible (cube.c)
+   8. The solving idea: Thistlethwaite's four phases
+   9. Turning a cube into a table index (coords.c)
+  10. The lookup tables and the program that builds them (tools/gen_tables.c)
+  11. The solver itself (solver.c)
+  12. Drawing on the screen (display.c)
+  13. Turning the motors (motion.c)
+  14. The tests (tests/test_solver.c)
+  15. Where to change things
+  16. Glossary
+
+
+================================================================================
+1. THE BIG PICTURE
+================================================================================
+
+The whole robot runs on a Raspberry Pi Pico W. No computer is attached.
+
+    IR remote ---> Pico W ---> TFT screen
+                     |
+                     +-------> 6 stepper drivers (TMC2209) ---> 6 motors
+
+What happens, in order:
+
+  1. The user types in the colour of every sticker with the remote.
+  2. The Pico checks that the colours describe a cube that can exist.
+  3. The Pico finds a list of moves that solves it (for example R U2 F' ...).
+     It does this by looking numbers up in big tables stored in flash memory.
+  4. The screen shows the solution.
+  5. The motors perform the moves, one face at a time.
+
+The most important design choice: each part of the program only does one job
+and talks to the other parts through a few functions. The solver never
+touches a motor; the motor code never knows how the solution was found. This
+makes each part easier to understand and test on its own.
+
+
+================================================================================
+2. THE FILES AND WHAT EACH ONE DOES
+================================================================================
+
+  src/main.c              The starting point. Sets everything up, then loops
+                          forever: read remote -> update app -> redraw.
+  src/input.c / .h        Decodes the IR remote's signal into button events.
+  src/app.c / .h          The "brain" of the user interface: which screen we
+                          are on, which sticker is selected, the solution.
+  src/display.c / .h      Draws the cube and text on the TFT screen.
+  src/motion.c / .h       Drives the six stepper motors.
+
+  src/cube.c / .h         How a cube is stored, how a face turn changes it,
+                          move names like "R2", and validation.
+  src/coords.c / .h       Turns a cube into a single number (an index) for
+                          each solving phase.
+  src/solver.c / .h       The Thistlethwaite solver.
+  src/thistle_tables.h    GENERATED. The four big lookup tables. Never edit
+                          by hand.
+  src/rubiks_constants.h  Every shared constant, each with a description.
+
+  tools/gen_tables.c      A program that runs on a PC (not the Pico) and
+                          builds src/thistle_tables.h.
+  tests/test_solver.c     PC tests: solves thousands of random cubes and
+                          checks every answer.
+
+  CMakeLists.txt          Builds the Pico firmware (.uf2 file).
+  pc/CMakeLists.txt       Builds the PC programs (generator and tests).
+
+
+================================================================================
+3. FOLLOWING ONE SOLVE FROM START TO FINISH (main.c)
+================================================================================
+
+Every C program starts at main(). Ours is at src/main.c:76.
+
+--- Setup (src/main.c:81-86) ---
+
+    display_init();     line 81  - start the screen
+    input_init();       line 82  - start listening to the IR receiver
+    motion_init();      line 83  - set up the motor pins (motors off)
+    app_init(&app);     line 85  - blank cube, editing mode
+    render(&app);       line 86  - draw the first screen
+
+`app` is declared at src/main.c:31 as `static App app;`. It is ONE struct
+holding the entire state of the user interface (see section 5). "static"
+here means it lives for the whole program instead of on the stack.
+
+--- The main loop (src/main.c:88-114) ---
+
+`for (;;)` at line 88 is a loop with no end condition: it runs forever,
+which is normal for a microcontroller.
+
+  Line 89:  Ask the remote if a button was pressed.
+  Line 90:  If not, do nothing and loop again (lines 91-92).
+  Line 95:  Remember which mode the app was in BEFORE handling the button.
+  Line 97:  Hand the button to the app. It returns true if anything that is
+            shown on screen changed.
+  Line 101: Nothing changed? Skip the redraw.
+  Line 104: Redraw the screen for the app's new state.
+  Line 110: If the app was NOT in "solved" mode before this button but IS
+            now, a solve just happened...
+  Line 112: ...so send the whole move list to the motors.
+            (The comment there still says "Placeholder" from before the
+            motor code existed; the call is real now.)
+
+--- render() (src/main.c:34-47) ---
+
+A `switch` on app.mode picks which screen to draw: the editing screen, the
+error screen, or the solution screen. Each case just calls one display
+function. This is the only place main.c decides what the screen shows.
+
+
+================================================================================
+4. READING THE IR REMOTE (input.c)
+================================================================================
+
+The IR receiver outputs a pin that goes low and high in a pattern when a
+button is pressed. The pattern is called the NEC protocol: a long "leader"
+pulse, then 32 bits. The length of the gap between falling edges tells you
+whether a bit is a 0 or a 1.
+
+--- The interrupt handler: on_ir_edge() (src/input.c:64-102) ---
+
+An INTERRUPT is a function the hardware calls by itself, the instant the
+pin changes, even if main() is busy drawing. That is why no button press
+is missed.
+
+  Line 68-70:  Measure the time since the last falling edge (dt).
+  Line 72:     ~13.5 ms gap = leader: start a new 32-bit code.
+  Line 80:     ~1.1 ms gap = a 0 bit.
+  Line 82-84:  ~2.2 ms gap = a 1 bit. `bits |= 1u << nbits` sets bit
+               number `nbits` to 1.
+  Line 85-87:  Any other gap is noise: give up on this code.
+  Line 90-94:  After 32 bits, pull out the command byte (bits 16-23) and its
+               inverted copy (bits 24-31). The remote sends both so the
+               receiver can check: command XOR inverse must be 0xFF.
+  Line 95-99:  Put the command in a small QUEUE (a ring buffer). If the
+               queue is full, the press is dropped.
+
+--- input_init() (src/input.c:104-110) ---
+
+Sets the pin as an input with a pull-up resistor, and tells the Pico to
+call on_ir_edge() on every falling edge (line 109).
+
+--- input_poll() (src/input.c:112-128) ---
+
+Called from the main loop. Takes the oldest command out of the queue and
+looks it up in IR_MAP (src/input.c:41) to turn the raw byte (like 0x0C)
+into a meaningful event (like INPUT_COLOR_WHITE). Returns INPUT_NONE if
+nothing is waiting. The list of possible events is the enum at
+src/input.h:16-33.
+
+
+================================================================================
+5. THE APP: A STATE MACHINE (app.c)
+================================================================================
+
+A STATE MACHINE is a program that is always in one of a few "modes", and
+each input can move it to another mode. Ours has three modes
+(src/app.h:41-45):
+
+    APP_EDITING  --OK, cube valid-->    APP_SOLVED
+    APP_EDITING  --OK, cube invalid-->  APP_ERROR
+    APP_ERROR    --any button-->        APP_EDITING
+    APP_SOLVED   --OK or BACK-->        APP_EDITING
+
+All the app's data is in the App struct at src/app.h:47-55: the mode, the
+54 entered sticker colours, the cursor, an error message, the solution,
+which solution step is shown, and the colours of the cube at that step.
+
+--- app_handle_input() (src/app.c:219-240) ---
+
+The single entry point. A `switch` on the mode sends the event to
+handle_editing() or handle_solved(), or handles the error mode directly.
+
+--- handle_editing() (src/app.c:145-187) ---
+
+  Line 147-154: A colour button paints the selected sticker and moves the
+                cursor forward. `event - INPUT_COLOR_WHITE` turns the event
+                into a colour number (0..5), which only works because the
+                two enums list the colours in the same order.
+  Line 157-169: Move the cursor by one sticker or by one face. The `%`
+                (remainder) makes the cursor wrap around from 53 to 0.
+  Line 170-177: BACK erases, like backspace.
+  Line 178:     CLEAR starts over.
+  Line 181:     OK calls solve().
+
+--- solve() (src/app.c:125-141) ---
+
+  Line 129: Convert the colours into a Cube and validate it. If anything is
+            wrong, switch to APP_ERROR (the reason is in app->message).
+  Line 133: Run the solver. Fills app->solution.
+  Line 139-141: Start at step 0 of the solution and switch to APP_SOLVED.
+
+--- handle_solved() (src/app.c:190-217) ---
+
+NEXT/PREV move app->step forward/back and recompute the picture of the cube
+with update_shown() (src/app.c:68-78), which re-applies the first `step`
+moves of the solution to the original cube.
+
+--- app_stickers_to_cube() (src/app.c:80-97) ---
+
+The app stores colours as numbers 0..5. This function turns them into
+letters (W, Y, R, O, G, B) and hands that 54-letter string to
+cube_from_stickers() in cube.c (section 7). If any sticker is still unset it
+returns an error right away (line 86-91).
+
+
+================================================================================
+6. HOW A CUBE IS STORED IN MEMORY (cube.h, cube.c)
+================================================================================
+
+You might expect a cube to be stored as 54 sticker colours. That works for
+drawing, but it is slow and awkward for solving. Instead we store PIECES.
+
+A 3x3 cube has:
+  - 6 centres: they never move relative to each other, so we ignore them.
+  - 8 corners: each has 3 stickers.
+  - 12 edges:  each has 2 stickers.
+
+The Cube struct (src/cube.h:40-45) has four small arrays:
+
+    cp[8]   cp[i] = which corner PIECE is sitting in corner POSITION i
+    co[8]   co[i] = how that corner is twisted: 0, 1 or 2
+    ep[12]  ep[i] = which edge piece is in edge position i
+    eo[12]  eo[i] = whether that edge is flipped: 0 or 1
+
+The solved cube is simply cp = {0,1,2,...,7}, all twists 0, ep =
+{0,1,...,11}, all flips 0. See cube_reset() at src/cube.c:85.
+
+Piece numbering is listed in the comment at the top of src/cube.h
+(corner 0 = URF, meaning the corner touching the Up, Right and Front faces).
+
+--- Moves are bytes ---
+
+A move like "R2" is stored as one number 0..17:
+
+    move = face * 3 + (quarter_turns - 1)
+
+Faces are numbered U=0 R=1 F=2 D=3 L=4 B=5 (src/cube.h:38). So R2 is
+1*3 + (2-1) = 4. The helpers at src/cube.c:178-200 pack and unpack this:
+move_make(), move_face(), move_quarter_turns(), move_inverse().
+
+--- Turning a face is a table lookup ---
+
+FACE_TURNS (src/cube.c:43-62) holds, for each face, what ONE clockwise
+quarter turn does. Read the R row (line 47): its first array is
+{4, 1, 2, 0, 7, 5, 6, 3}. That means "after the turn, position 0 holds the
+corner that was in position 4, position 1 is unchanged, ..." The second
+array says how much twist each arriving corner gains.
+
+apply_quarter_turn() (src/cube.c:115-136) applies one of these tables:
+
+  Line 121:     Copy the cube first. We need the OLD positions while we
+                overwrite the new ones, otherwise we would read values we
+                have already changed.
+  Line 126-129: For each corner position: take the piece from the position
+                the table says, and add the table's twist. `% 3` keeps the
+                twist in 0..2 (twist 2 + 1 more = 3, which is 0 again).
+  Line 132-135: Same for edges with `% 2`.
+
+cube_apply_move() (src/cube.c:140) just calls apply_quarter_turn() 1, 2 or
+3 times. R' (counter-clockwise) is three clockwise turns. That way only six
+tables are needed instead of eighteen.
+
+
+================================================================================
+7. CHECKING THAT A CUBE IS POSSIBLE (cube.c)
+================================================================================
+
+If you peel a sticker off or take the cube apart, you can build a cube that
+no sequence of moves can solve. The user can also just type a colour wrong.
+We must catch this before solving.
+
+--- cube_from_stickers() (src/cube.c:333-439) ---
+
+Turns 54 colour letters into the piece arrays, checking as it goes:
+
+  Line 346:     The six CENTRE stickers decide which colour belongs to which
+                face (whatever colour is in the middle of the top is "U").
+  Line 358:     Translate each sticker colour into a face.
+  Line 374:     Each colour must appear exactly 9 times.
+                (Example message: "Colour 'R' appears 10 times")
+  Line 383-409: For every corner position, try all 8 corner pieces in all 3
+                twists until the three colours match. If none match, that
+                combination of colours is not a real corner.
+  Line 411-435: The same for edges (12 pieces x 2 flips).
+  Line 438:     Hand the finished Cube to cube_validate().
+
+The tables CORNER_STICKERS (src/cube.c:66) and EDGE_STICKERS
+(src/cube.c:73) say which of the 54 sticker slots belong to each piece
+position. The U(n), R(n), ... macros at src/cube.c:17-22 turn "sticker n of
+face U" into an index 0..53.
+
+--- cube_validate() (src/cube.c:278-319) ---
+
+Checks the four laws every real cube obeys:
+
+  Law 1 (line 280): every piece exists exactly once.
+  Law 2 (line 290): the corner twists add up to a multiple of 3. (A single
+                    twisted corner breaks this.)
+  Law 3 (line 300): the edge flips add up to an even number. (A single
+                    flipped edge breaks this.)
+  Law 4 (line 310): corners and edges have the same PARITY. Parity is
+                    whether a permutation takes an even or odd number of
+                    swaps to sort (permutation_parity(), src/cube.c:159).
+                    Every quarter turn swaps an odd number of corners AND an
+                    odd number of edges, so they stay matched. Two edges
+                    swapped by hand break this.
+
+If a check fails, a readable message is written into `message` with
+snprintf, which is what the screen shows.
+
+
+================================================================================
+8. THE SOLVING IDEA: THISTLETHWAITE'S FOUR PHASES
+================================================================================
+
+A cube has about 43,000,000,000,000,000,000 (4.3 x 10^19) possible states.
+You cannot store an answer for every one.
+
+Thistlethwaite's trick: solve it in four phases. Each phase is allowed
+FEWER kinds of moves than the one before, and each phase only cares about
+part of the cube. Each part is small enough to store in a table.
+
+  Phase  Allowed moves         Goal reached at the end
+  -----  --------------------  ---------------------------------------------
+    1    all 18 moves          every edge is "oriented" (not flipped)
+    2    F and B only as F2,B2 every corner untwisted; the 4 middle-layer
+                               edges are back in the middle layer
+    3    R and L also only     everything is in a position that half turns
+         as R2,L2              alone can solve
+    4    half turns only       solved
+
+The allowed moves are listed in PHASE_MOVES (src/coords.c:24-36).
+
+Why can't a later phase undo an earlier phase? Look back at FACE_TURNS:
+only F and B quarter turns flip edges (src/cube.c:50-52 and 59-61, the last
+array in each row is the only one with 1s). Phase 2 bans F and B quarter
+turns, so once phase 1 has fixed every edge's flip, nothing in phases 2-4
+can flip one again. The same idea holds for each later phase.
+
+
+================================================================================
+9. TURNING A CUBE INTO A TABLE INDEX (coords.c)
+================================================================================
+
+To look something up in a table you need an index (a position in the
+array). A "coordinate" is a function that turns the parts of the cube a
+phase cares about into one number.
+
+--- Phase 1: coord_edge_orient() (src/coords.c:108) ---
+
+The 12 edge flips are each 0 or 1, so read 11 of them as a binary number
+(the 12th is always determined by the others, because of Law 3).
+Range: 0..2047. Index 0 = every edge correct = phase 1 done.
+
+--- Phase 2: coord_phase2() (src/coords.c:201) ---
+
+Two features:
+  - corner twists read as a base-3 number (coord_corner_orient(),
+    src/coords.c:120): 0..2186
+  - which 4 of the 12 edge positions hold the middle-layer edges
+    (coord_e_slice_comb(), src/coords.c:132): 0..494
+
+They are combined like a 2-D array index (row * width + column):
+
+    index = twist * 495 + edges
+
+--- Phase 3: coord_phase3() (src/coords.c:210) ---
+
+Which of 420 "classes" the corner arrangement belongs to (from a small
+table, CORNER_COSET) and where the 4 M-slice edges are (0..69).
+
+--- Phase 4: coord_phase4() (src/coords.c:219-258) ---
+
+The exact corner arrangement (one of only 96 that half turns can make,
+found with a binary search at lines 222-237) plus the order of the edges in
+each of the three middle slices (lines 240-242). Line 246-249: if any part
+is not something half turns can produce, return COORD_INVALID.
+
+--- Ranking helpers ---
+
+permutation_rank() (src/coords.c:69) gives every ordering of n items a
+unique number from 0 to n!-1 (like its position in a dictionary).
+combination_rank() (src/coords.c:87) gives every choice of 4 positions a
+unique number. You don't need to follow the maths to use them: they are
+just "turn this arrangement into a unique number" functions.
+
+
+================================================================================
+10. THE LOOKUP TABLES AND THE PROGRAM THAT BUILDS THEM (tools/gen_tables.c)
+================================================================================
+
+For each phase, the table stores, at every index:
+
+    "how many moves (using only this phase's moves) to reach the goal"
+
+These distances are worked out ONCE on a PC by tools/gen_tables.c and saved
+as C arrays in src/thistle_tables.h (PHASE1_DIST at line 24, PHASE2_DIST at
+71, PHASE3_DIST at 22629, PHASE4_DIST at 23246). They are `const`, so on the
+Pico they stay in flash memory and are read directly from there. RAM (only
+264 KB) is never used for them.
+
+--- Breadth-first search: build_distance_table() (tools/gen_tables.c:217) ---
+
+BREADTH-FIRST SEARCH (BFS) is like ripples spreading in a pond. Start at
+the goal (distance 0). Everything one move away is distance 1. Everything
+one move from THOSE (and not already seen) is distance 2. And so on.
+
+  Line 224-227: Mark every state "unvisited", except the goal = 0.
+  Line 233:     One pass per distance.
+  Line 237-238: Find every state at the current distance...
+  Line 243-248: ...build an example cube for that index (the "unrank"
+                functions at lines 120, 137, 167 and 183 do the opposite of
+                the coordinate functions) and double-check that measuring it
+                gives the same index back.
+  Line 252-262: Try every allowed move. Any neighbour not seen yet gets
+                distance + 1.
+  Line 268:     No new states found? The search is finished.
+  Line 275:     Distances must fit in 4 bits (max 15), see below.
+  Line 281:     Every index must have been reached, or the table has holes.
+
+The calls to fail() are self-checks: if anything is inconsistent, the
+program stops instead of writing a wrong table.
+
+--- Packing two entries per byte ---
+
+The longest distance in any phase is 15, which fits in 4 bits. A byte has 8
+bits, so write_packed_table() (tools/gen_tables.c:390) stores two distances
+in each byte. This halves the table size (about 970 KB total).
+
+--- main() (tools/gen_tables.c:422) ---
+
+Builds two helper tables (lines 433-434), runs the four searches (lines
+435-438), and writes the header file (from line 441).
+
+
+================================================================================
+11. THE SOLVER ITSELF (solver.c)
+================================================================================
+
+Once the tables exist, solving is surprisingly short.
+
+--- Reading the table: solver_phase_distance() (src/solver.c:54-63) ---
+
+  Line 56:  Measure the cube for this phase (section 9).
+  Line 59:  Safety check: never read past the end of the table.
+  Line 62:  Read the distance.
+
+table_read() (src/solver.c:44-50) undoes the packing: even indices are the
+low 4 bits of a byte, odd indices the high 4 bits. `>> shift` moves the
+wanted half down, `& 0x0F` throws away the other half.
+
+--- solver_solve() (src/solver.c:97-160) ---
+
+  Line 100:     Work on a COPY of the cube, so the caller's cube is not
+                changed.
+  Line 109:     Refuse impossible cubes.
+  Line 115:     For each of the four phases...
+  Line 117:     ...look up how far the cube is from this phase's goal.
+  Line 125:     While not there yet:
+  Line 129-131: Try each allowed move on a copy of the cube.
+  Line 134:     If the move makes the distance one smaller, it is a good
+                move: record it (line 138), keep the new cube (line 140),
+                and continue from there.
+  Line 146:     If no move helped, the table must be damaged (this never
+                happens with a correct table, because if a state is d moves
+                away, at least one move leads to a state d-1 moves away).
+  Line 153:     After phase 4, the cube must be solved.
+  Line 158:     Tidy the move list.
+
+This is called a GREEDY walk downhill: at each step, take any move that
+gets you closer. Because the tables hold exact distances, greedy is also
+the shortest path within each phase.
+
+--- merge_moves() (src/solver.c:71-95) ---
+
+Where one phase ends and the next begins, you can get two turns of the same
+face in a row, for example "R" then "R2". Those combine into one move
+("R'"), and "F2 F2" cancels out completely. The loop adds up the quarter
+turns of neighbouring same-face moves (line 80-81) and keeps the result.
+
+Results from the PC tests: about 31 moves on average, 45 at the very most.
+
+
+================================================================================
+12. DRAWING ON THE SCREEN (display.c)
+================================================================================
+
+The screen is an ST7735 TFT, talked to over SPI using the pico-st7735
+library (functions like fillRect, drawText).
+
+  display_init()          src/display.c:168  Start SPI and the screen.
+  display_show_entry()    src/display.c:179  Cube + cursor outline + help text.
+  display_show_message()  src/display.c:196  "Can't solve:" + the reason.
+  display_show_solution() src/display.c:205  Cube + "Move 3 of 28" + the move.
+
+The cube is drawn as the unfolded "net" shown in the comment at the top of
+src/cube.h. FACE_ORIGIN (src/display.c:20) says where each face's top-left
+square sits on a 12 x 9 grid. display_stickers_to_map()
+(src/display.c:65-127) fills that grid with screen colours; the blankMap at
+lines 68-78 marks which grid squares are part of the cube (1) and which are
+empty (0). draw_cube() (src/display.c:130) then draws one filled rectangle
+per square.
+
+
+================================================================================
+13. TURNING THE MOTORS (motion.c)
+================================================================================
+
+Hardware: six NEMA 17 stepper motors, one per face, each controlled by a
+TMC2209 driver board. The Pico can't power a motor itself; it only sends
+two signals to each driver:
+
+  STEP  every pulse (low -> high -> low) moves the motor one tiny step
+  DIR   high or low chooses which way it turns
+
+plus one shared ENABLE pin that turns all the drivers on or off.
+
+--- The numbers (src/motion.c:42-44) ---
+
+The motor has 200 full steps per revolution (1.8 degrees each). The driver
+splits each into 8 MICROSTEPS for smoother motion. So:
+
+    one revolution  = 200 * 8 = 1600 pulses
+    a quarter turn  = 1600 / 4 = 400 pulses   (QUARTER_TURN_STEPS)
+
+--- Speed ramp: step_rate() (src/motion.c:77-87) ---
+
+If you ask a stepper to jump straight to full speed it can't keep up, skips
+steps, and the face ends up in the wrong place. So every turn starts slow,
+speeds up, then slows down before stopping:
+
+    speed
+      ^      ________________
+      |     /                \
+      |    /                  \
+      |___/                    \___
+      +-----------------------------> pulse number
+       start   top speed     stop
+
+  Line 80-81: How far is this pulse from the nearer end of the turn?
+  Line 83-84: Far from both ends: full speed.
+  Line 86:    Near an end: a speed in between, proportional to the distance.
+
+--- Sending pulses: pulse_steps() (src/motion.c:90-101) ---
+
+  Line 94:    Convert speed (pulses per second) into the time between pulses
+              in microseconds: 1,000,000 / speed.
+  Line 96-99: Set STEP high, wait 3 us, set it low, wait the rest of the
+              period. busy_wait_us_32() waits by counting time, which is
+              precise enough for this.
+
+--- Setup: motion_init() (src/motion.c:107-125) ---
+
+Makes every STEP and DIR pin an output set low (lines 110-118) and starts
+with the drivers DISABLED (line 124) so the motors don't heat up while the
+user is typing in colours.
+
+--- motion_enable() (src/motion.c:127-139) ---
+
+Turns the drivers on or off. ENABLE on the TMC2209 is "active low", meaning
+0 = on (that is what ENABLE_ACTIVE_LEVEL at line 28 records). After turning
+on it waits 10 ms (line 137) for the motors to be ready.
+
+--- motion_turn_face() (src/motion.c:141-163) ---
+
+Turns one face a signed number of quarter turns (+ clockwise, - counter-
+clockwise):
+
+  Line 146:     Make sure the drivers are on.
+  Line 150-153: Pick the direction. If a motor is mounted the other way
+                round, MOTOR_REVERSED (line 37) flips it.
+  Line 154-155: Set DIR, then wait a few microseconds before stepping.
+  Line 158-159: Send 400 pulses per quarter turn, as one smooth ramped move
+                (a half turn is one 800-pulse move, not two stops).
+  Line 162:     Wait 150 ms so the cube is completely still before the next
+                face moves.
+
+--- motion_execute_move() (src/motion.c:165-178) ---
+
+Converts a solver move into a motor turn. R = 1 quarter turn, R2 = 2. R'
+is 3 clockwise quarter turns, but 1 counter-clockwise turn reaches the same
+place three times faster, so lines 174-176 change 3 into -1.
+
+--- motion_execute_moves() (src/motion.c:180-186) ---
+
+Runs the whole list, then switches the drivers off. This is what main.c
+calls after a solve (src/main.c:112).
+
+
+================================================================================
+14. THE TESTS (tests/test_solver.c)
+================================================================================
+
+These run on a PC, not the Pico. Because the solver and app don't touch any
+hardware, they can be tested properly on a normal computer.
+
+  test_moves()       line 96   Every move followed by its inverse returns
+                               to solved; every move done 4 times does too;
+                               the sticker pattern after R is correct.
+  test_validation()  line 137  Each kind of impossible cube is rejected.
+  test_app()         line 213  Simulates button presses through the app.
+  test_solver()      line 288  The main test: builds random legal cubes
+                               (line 301), solves each (line 302), applies
+                               the answer to a copy (line 307-310) and
+                               checks it really is solved.
+
+CHECK() (line 34) is a small macro: if its condition is false it prints
+which check failed and on which line, then keeps going, so one run reports
+every problem.
+
+Run them from the project folder with:  make test
+
+
+================================================================================
+15. WHERE TO CHANGE THINGS
+================================================================================
+
+  Want to...                              Change...
+  --------------------------------------  ------------------------------------
+  Use a different IR remote               IR_MAP, src/input.c:41
+  Move the IR receiver pin                IR_PIN in CMakeLists.txt
+  Move motor pins                         STEP_PINS / DIR_PINS / ENABLE_PIN,
+                                          src/motion.c:25-27
+  Fix a face that turns the wrong way     MOTOR_REVERSED, src/motion.c:37
+  Change microstepping (MS1/MS2 wiring)   MICROSTEPS, src/motion.c:43
+  Make the motors faster or slower        START_STEP_RATE, MAX_STEP_RATE,
+                                          RAMP_STEPS, src/motion.c:51-53
+  Change the pause between moves          MOVE_SETTLE_MS, src/motion.c:62
+  Change the default centre colours       DEFAULT_CENTERS, src/app.c:25
+  Regenerate the lookup tables            make tables  (never hand-edit
+                                          src/thistle_tables.h)
+
+
+================================================================================
+16. GLOSSARY
+================================================================================
+
+  array lookup     Reading table[i] instead of computing an answer. Fast,
+                   but costs memory.
+  BFS              Breadth-first search. Visits everything 1 step away,
+                   then 2 steps away, and so on (section 10).
+  const            A value that never changes. On the Pico, big const arrays
+                   stay in flash memory instead of using RAM.
+  coordinate       A number that describes the part of the cube a phase
+                   cares about; used as a table index (section 9).
+  enum             A list of named integer constants, e.g. FACE_U = 0.
+  flash            The Pico's 2 MB of long-term storage where the program
+                   and the lookup tables live.
+  interrupt        A function the hardware calls by itself when something
+                   happens (an IR pin edge), pausing whatever main() was
+                   doing (section 4).
+  microstep        A fraction of a motor's full step; smoother motion.
+  parity           Whether an arrangement takes an even or odd number of
+                   swaps to sort (section 7).
+  permutation      An ordering of items, e.g. which piece is in which slot.
+  ring buffer      A fixed-size queue that wraps around to the start; used
+                   for remote presses (section 4).
+  state machine    A program that is always in one of a few modes and
+                   switches between them on inputs (section 5).
+  struct           A group of related variables under one name, e.g. Cube.
+  % (modulo)       The remainder after division: 5 % 3 = 2. Used to wrap
+                   values around (twists 0..2, cursor 0..53).
+  >> and &         Bit shift and bit mask: pull a few bits out of a byte.
