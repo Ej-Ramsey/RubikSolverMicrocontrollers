@@ -9,3 +9,6 @@ CMakeUserPresets.json
 # OS junk
 .DS_Store
 Thumbs.db
+
+# CAD virtual environment (recreate with cad/README.txt)
+cad/.venv/

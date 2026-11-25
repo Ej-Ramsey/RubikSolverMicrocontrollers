@@ -1,0 +1,344 @@
+================================================================================
+              RUBIK'S SOLVER - PART DIMENSIONS FOR CAD / 3D PRINTING
+================================================================================
+
+All dimensions are in millimetres (mm) unless stated otherwise.
+
+How much to trust each number:
+  [DRAWING]  Taken from the manufacturer's dimensioned drawing. Design to it.
+  [SPEC]     From the manufacturer's or seller's spec sheet, no drawing.
+  [LISTING]  From the product title or a retailer listing. Check with calipers.
+  [MEASURE]  Not found online, or varies between sellers. Measure your part
+             before you design around it.
+
+Print tolerances: an FDM printer usually prints holes slightly SMALL and
+outside dimensions slightly LARGE. The "print" suggestions below add a typical
+clearance (+0.2 to +0.4 mm). Print a small test piece first and adjust for
+your own printer.
+
+
+--------------------------------------------------------------------------------
+CONTENTS
+--------------------------------------------------------------------------------
+  1. Stepper motor (x6)              NEMA 17, STEPPERONLINE 17HE15-1504S
+  2. Rubik's cube                    MoYu RS3M V5
+  3. Motor layout around the cube
+  4. Stepper driver (x6, 2 spare)    BIGTREETECH TMC2209 V1.3
+  5. Microcontroller                 Raspberry Pi Pico W
+  6. TFT display                     1.8" ST7735, 128 x 160 (lab-provided)
+  7. IR receiver                     (lab-provided)
+  8. Capacitors (x6)                 100 uF 25 V electrolytic
+  9. Prototype boards                Smraza double-sided kit
+ 10. Screw terminal blocks           2-pin, 5.08 mm pitch
+ 11. DC barrel connectors            5.5 x 2.1 mm
+ 12. Power supply                    12 V 5 A adapter
+ 13. Wire                            22 AWG solid
+ 14. Measure-before-you-design checklist
+ 15. Sources
+
+
+================================================================================
+1. STEPPER MOTOR (x6) - NEMA 17, STEPPERONLINE 17HE15-1504S
+================================================================================
+
+The Amazon listing ("1.5A 42Ncm 42x42x38mm 1.8deg 4 Wires with 1m Cable and
+Connector") matches STEPPERONLINE model 17HE15-1504S. All numbers below are
+from that model's dimensioned drawing [DRAWING].
+
+  FRONT VIEW (looking at the shaft)          SIDE VIEW
+
+     |<------ 42.3 max ------>|                  |<-23.5->|<--- 38 --->|
+     |    |<--- 31 --->|      |                  |        |            |
+     +------------------------+               ___|________|____________|
+     | o                   o  |  ---           |  shaft  ||  body       |
+     |       .------.         |   ^            |  O5     ||             |
+     |      /  O22   \        |   31           |=========||             |
+     |      \  boss  /        |   v            |  D-cut  ||             |
+     |       '------'         |  ---           |___20____||_____________|
+     | o                   o  |                         ^^
+     +----------[conn]--------+                    boss 2 tall
+
+  Body / flange
+    Flange (square)                 42.3 max  (nominal 42)
+    Body length (flange to back)    38 (reference)
+    Corner chamfers                 yes, standard NEMA 17
+
+  Mounting
+    Hole pattern                    31 +/- 0.2, square (centre to centre)
+    Thread                          M3, 4 holes in the front face
+    Thread depth                    4.0 min
+      -> Choose screw length = plate thickness + 3.5 (no more than ~4 of
+         thread engaged, so the screw doesn't bottom out).
+      -> Print: clearance holes 3.4 dia.
+
+  Front boss (pilot) - the raised ring around the shaft
+    Diameter                        22 (+0 / -0.05)
+    Height above flange             2 +/- 0.25
+      -> Print: pocket 22.4 dia x 2.3 deep to centre the motor, or a
+         through-hole of at least 22.5 dia.
+
+  Shaft (single shaft, front only)
+    Diameter                        5 (+0 / -0.012)
+    Length from flange face         23.5 +/- 0.5
+    D-cut (flat) length             20 +/- 0.2, measured back from the tip
+    Across the flat                 4.5 +/- 0.1  (the flat is 0.5 deep)
+      -> Print: bore 5.2 dia with a flat at 4.6, so the coupler slides on
+         and can't spin on the shaft.
+
+  Connector and cable
+    Motor-side connector            JST PH 2.0 mm, 6-pin (PH-6AWJ socket)
+    Connector position              Bottom edge of the motor, sticks out
+                                    about 6.5 below the flange outline and
+                                    sits about 10 from the back of the body.
+                                    Leave room in the frame for this plug!
+    Connector width                 about 16 (pin span)
+    Cable length                    1000 +/- 15
+    Wires                           4 x AWG26 (UL1007)
+    Far end of the cable            4-pin 2.54 mm female housing
+                                    (plugs onto a 2.54 mm pin header)
+    Wire colours                    BLK = A+, BLU = A-, GRN = B+, RED = B-
+                                    (BLK/BLU = coil A, GRN/RED = coil B)
+
+  Other
+    Weight                          about 280 g each (about 1.7 kg for six)
+    Holding torque                  0.42 N*m
+    Rated current                   1.5 A per phase
+    Step angle                      1.8 deg (200 steps per revolution)
+
+
+================================================================================
+2. RUBIK'S CUBE - MoYu RS3M V5
+================================================================================
+
+  Edge length                       55.5  [LISTING]
+  One cubie (55.5 / 3)              about 18.5  [derived]
+  Weight                            about 65-75 g, depending on version
+                                    [LISTING]
+
+  Centre piece with its cap removed (where the couplers link). From the
+  RS3M STL (a 54.04 mm remake) scaled x 1.027 to the 55.5 mm cube, plus the
+  photos [LISTING-level confidence: MEASURE to confirm]:
+    Cap seat (cap's top plate)      18.3 square, 5.6 corner radius,
+                                    1.54 deep (cube face to the piece's rim)
+    Recess (below the rim)          15.4 square, 3.7 corner radius,
+                                    about 5.8 deep with straight walls
+    Screw tube in the middle        about 10.3 outside diameter, top about
+                                    3.7 below the rim
+    Blue adjustment nut             about 12 across (from the photos)
+  The couplers (cad/couplers.py) plug into this recess.
+
+================================================================================
+3. MOTOR LAYOUT AROUND THE CUBE
+================================================================================
+
+  One motor sits on each of the six faces, shaft pointing at the centre of
+  the cube (motor n turns face n, in the order U R F D L B, see src/motion.c).
+
+  Useful numbers:
+    Half the cube                   27.75   (cube centre to a face)
+    Half a motor flange             21.15   (42.3 / 2)
+
+  The motors cannot hit each other: each one is 42.3 wide, which is smaller
+  than the 55.5 cube face it sits on. So all six fit around the cube with
+  plenty of room, as long as each flange is beyond its cube face.
+
+  Distance from cube centre to each motor flange face:
+      = 27.75 (to the cube face)
+      + gap between the cube face and the coupler (suggest 1-2)
+      + coupler thickness in front of the cube
+      ... and the shaft (23.5 long) must reach into the coupler.
+  Pick the coupler design first, then this distance.
+
+  The cube must be able to come out: plan for at least one motor (usually
+  the top one) to be removable or on a hinge/slide.
+
+
+================================================================================
+4. STEPPER DRIVER (x6, 2 spare) - BIGTREETECH TMC2209 V1.3
+================================================================================
+
+  Board size                        20.32 x 15.24  (0.8 x 0.6 in)  [SPEC]
+  Form factor                       "StepStick": two rows of 8 pins
+  Pin pitch                         2.54
+  Row spacing                       12.7 (0.5 in), standard StepStick
+                                    [MEASURE to confirm]
+  Height with pins and heatsink     [MEASURE] - leave at least 15 above the
+                                    board for the heatsink and air flow.
+  Pin order (from BTT wiki)
+    Control side (J1)               EN, MS1, MS2, PDN_UART, PDN_UART, CLK,
+                                    STEP, DIR
+    Power side (J2)                 VM, GND, A2, A1, B1, B2, VCC_IO, GND
+
+  Electrical numbers that affect the design
+    Motor supply (VM)               4.75-28 V (we use 12 V)
+    Current                         2 A RMS / 2.8 A peak max
+    Current setting                 I_RMS = Vref / 1.41
+                                    (Vref about 1.4 V gives about 1 A)
+    Cooling                         The drivers get warm. Put them where air
+                                    can move, not in a sealed box.
+
+  The Vref potentiometer is adjusted from the top with a small screwdriver,
+  so keep the top of every driver reachable after assembly.
+
+
+================================================================================
+5. MICROCONTROLLER - RASPBERRY PI PICO W
+================================================================================
+
+All numbers from the official Raspberry Pi drawing [DRAWING].
+
+  Board                             51 x 21
+  Mounting holes                    4 x 2.1 dia
+  Hole spacing                      11.4 (across) x 47.0 (along)
+                                    (holes are 2.0 from each short end and
+                                    4.8 from each long edge)
+  Pin pitch                         2.54
+  Pin rows                          17.78 apart (0.7 in), 20 pins each
+  Pin row length                    48.26
+  Pin holes                         1.0 dia, 1.61 from the long edge
+  Micro-USB connector               8 wide, sticks out 1.3 past the end
+  Wi-Fi antenna end                 The end opposite the USB. Keep metal
+                                    and motors away from it (not used by
+                                    this project, so it isn't critical).
+  Height                            [MEASURE] with or without soldered
+                                    headers.
+
+  -> Print: M2 screws or 2.5 pegs for the 2.1 holes; leave the USB end
+     open so a cable can still be plugged in for flashing.
+
+
+================================================================================
+6. TFT DISPLAY - 1.8" ST7735, 128 x 160 (lab-provided)
+================================================================================
+
+  The exact module was provided by the lab and its brand isn't known, so
+  these are typical values for this display size only [MEASURE]:
+
+    Board (typical)                 about 34 x 56 to 58
+    Mounting holes (typical)        4 corner holes, about 2-3 dia
+    Visible screen area (typical)   about 28 x 35
+    Screen orientation              Portrait 128 x 160 pixels in the code
+
+  Measure: board size, hole positions, where the visible area sits on the
+  board (it is usually off-centre, toward the end without the pin header),
+  board thickness with the glass, and the header position.
+
+
+================================================================================
+7. IR RECEIVER (lab-provided)
+================================================================================
+
+  [MEASURE] Bare 3-pin receivers (VS1838B type) and small breakout boards
+  are both common. Measure the body, lens position and pin spacing
+  (usually 2.54).
+  The lens must SEE the remote: leave a window or hole in the case in
+  front of it.
+
+
+================================================================================
+8. CAPACITORS (x6) - 100 uF 25 V ELECTROLYTIC
+================================================================================
+
+  Body                              6 dia x 12 tall  [LISTING]
+  Lead spacing                      2.5 (standard for this size)  [MEASURE]
+  Placement                         One across VM and GND at each driver,
+                                    as close to the driver as possible.
+                                    The stripe marks the negative lead.
+  Leave 13+ of height above the proto board if they stand upright.
+
+
+================================================================================
+9. PROTOTYPE BOARDS - SMRAZA DOUBLE-SIDED KIT
+================================================================================
+
+  Sizes in the kit                  2 x 8, 3 x 7, 4 x 6, 5 x 7, 7 x 9 cm
+                                    [LISTING]
+  Hole pitch                        2.54
+  Thickness                         about 1.6  [MEASURE]
+  Corner mounting holes             [MEASURE] diameter and position for
+                                    the size you use
+  Also in the kit                   2.54 mm male and female pin headers
+                                    (40-pin strips)
+
+  Suggestion: one 7 x 9 cm board fits the Pico W plus six drivers in
+  sockets. Each driver needs about 21 x 16 of board, plus room for its
+  capacitor and the 4-pin motor plug.
+
+
+================================================================================
+10. SCREW TERMINAL BLOCKS - 2-PIN, 5.08 mm PITCH
+================================================================================
+
+  Pin pitch                         5.08  [LISTING]
+  Rating                            300 V 10 A  [LISTING]
+  Body size                         [MEASURE] (typical: about 10 wide,
+                                    7.5 deep, 10 tall)
+  Note: 5.08 is twice 2.54, so the pins line up with every other hole on
+  the proto board.
+
+
+================================================================================
+11. DC BARREL CONNECTORS - 5.5 x 2.1 mm (CENTROPOWER)
+================================================================================
+
+  Plug size                         5.5 outer, 2.1 centre pin  [LISTING]
+  Rating                            12 V 5 A  [LISTING]
+  Body size                         [MEASURE] - if the case has a panel
+                                    hole for the female jack, measure its
+                                    barrel diameter and the screw terminals.
+
+
+================================================================================
+12. POWER SUPPLY - ALITOVE 12 V 5 A
+================================================================================
+
+  Output                            12 V, 5 A (60 W)  [LISTING]
+  Plug                              5.5 x 2.5 and 5.5 x 2.1 tips  [LISTING]
+  This is an external brick. Only the barrel jack and the cable path need
+  to be in the CAD model.
+
+
+================================================================================
+13. WIRE - 22 AWG SOLID (TUOFENG)
+================================================================================
+
+  Copper conductor                  0.64 dia (22 AWG)
+  Outer diameter with insulation    [MEASURE] (often 1.5-1.7)
+  Use the outer diameter to size cable channels and holes. The motor
+  cables (AWG26, 1 m) are thinner and long enough to route through the
+  frame.
+
+
+================================================================================
+14. MEASURE-BEFORE-YOU-DESIGN CHECKLIST
+================================================================================
+
+  [ ] Cube centre cap: size, depth, and gap to neighbouring pieces
+  [ ] TFT: board outline, hole positions, visible-area position, thickness
+  [ ] IR receiver: body size, lens position
+  [ ] TMC2209: height with heatsink, header row spacing
+  [ ] Pico W: height with headers soldered
+  [ ] Proto board actually used: outline and corner holes
+  [ ] Capacitor lead spacing
+  [ ] Screw terminal and barrel jack bodies
+  [ ] One motor: confirm 31 mm hole pattern and 22 mm boss with calipers
+  [ ] Print test: a 5 mm D-bore and a 22 mm boss pocket, to set your
+      printer's clearances before printing the full frame
+
+
+================================================================================
+15. SOURCES
+================================================================================
+
+  Motor drawing (17HE15-1504S):
+    https://www.oyostepper.com/images/upload/File/17HE15-1504S.pdf
+  Motor product page (STEPPERONLINE):
+    https://www.omc-stepperonline.com/e-series-nema-17-bipolar-42ncm-59-49oz-in-1-5a-42x42x38mm-4-wires-w-1m-cable-connector-17he15-1504s
+  Pico W product brief with drawing (Raspberry Pi):
+    https://datasheets.raspberrypi.com/picow/pico-w-product-brief.pdf
+  TMC2209 (BIGTREETECH wiki):
+    https://global.bttwiki.com/TMC2209.html
+  MoYu RS3M V5 size:
+    https://speedcubeshop.com/products/moyu-rs3-m-v5-3x3-magnetic-dual-adjustment
+  Smraza proto board kit sizes:
+    https://www.desertcart.co.za/products/119606150-104pcs-double-sided-pcb-board-kit
