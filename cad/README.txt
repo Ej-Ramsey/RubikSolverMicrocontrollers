@@ -102,18 +102,18 @@ Print list (220 mm bed, 0.2 mm layers, PLA or PETG)
   tft_stand      1   40 x 62 x 12       Lying on its back
   coupler_spring 4   44 x 44 x 33       Standing on the flange
   coupler_fixed  2   18 x 18 x 38       Standing on its back end
-  coupler_test_fit 1 18 x 18 x 9        Plug up (print this first!)
+  coupler_test_fit 1 18 x 18 x 9        Plug up (optional: fit confirmed)
   No supports needed anywhere. Use 4 walls and 30-40% infill for the
   bridges, rings and columns so the motors stay rigid.
   Print these two cheap fit tests first:
     motor_mount_plate  - a motor should drop onto its centre hole without
                          wobbling (the bridges use the same hole).
-    coupler_test_fit   - with a centre cap popped off, the plug should
-                         drop into the recess snugly, the neck should sit
-                         in the cap's seat, and it must not touch the
-                         blue nut. If not, adjust the MEASURE constants
-                         at the top of couplers.py and rerun.
-  Couplers: 100% infill or 6 walls; the plug walls are thin.
+    coupler_test_fit   - already confirmed on a real centre piece: the
+                         16.2 mm plug fits the recess, and the screw and
+                         blue nut sit in the 13.3 x 6.5 mm well. Reprint
+                         it only if you change PLUG_WIDTH, PLUG_RADIUS,
+                         WELL_DIAMETER or WELL_DEPTH in couplers.py.
+  Couplers: 100% infill or 6 walls; the plug walls are only about 1.45 mm.
 
 Screws (all M3 unless noted; the frame's pilot holes are 2.5 mm, for
 screwing straight into the plastic. For heat-set inserts change SCREW_PILOT
@@ -182,10 +182,10 @@ Loading the cube (pop all six centre caps off first)
 
 Still to design / measure
 -------------------------
-  - Couplers: the centre-piece numbers come from the RS3M STL (a 54.04 mm
-    remake) scaled to the real 55.5 mm cube. Print coupler_test_fit and
-    check it in a real centre piece. Most important: the blue adjustment
-    nut must fit inside the plug's 12.6 mm hole (NUT_DIAMETER, PLUG_BORE).
+  - Couplers: the plug (16.2 mm, 3.6 mm corners) and its screw well
+    (13.3 mm wide, 6.5 mm deep from the plug tip) are confirmed with test
+    prints in a real centre piece. The cap seat numbers (CAP_SEAT_*) still
+    come from the scaled RS3M STL; the neck already fit in the test prints.
   - Constants marked MEASURE in frame.py: proto board hole inset, TFT size
     and hole spacing, IR receiver hole. Only base_bottom and tft_stand use
     them, so measure before printing those two. Everything else can be

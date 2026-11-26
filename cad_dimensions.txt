@@ -120,12 +120,16 @@ from that model's dimensioned drawing [DRAWING].
   photos [LISTING-level confidence: MEASURE to confirm]:
     Cap seat (cap's top plate)      18.3 square, 5.6 corner radius,
                                     1.54 deep (cube face to the piece's rim)
-    Recess (below the rim)          15.4 square, 3.7 corner radius,
-                                    about 5.8 deep with straight walls
+    Recess (below the rim)          about 5.8 deep with straight walls.
+                                    The STL gave 15.4 square, but a printed
+                                    plug 16.2 square with 3.6 corners is
+                                    what fits [CONFIRMED by test print]
     Screw tube in the middle        about 10.3 outside diameter, top about
                                     3.7 below the rim
     Blue adjustment nut             about 12 across (from the photos)
-  The couplers (cad/couplers.py) plug into this recess.
+  The couplers (cad/couplers.py) plug into this recess. Their well for the
+  screw and blue nut is 13.3 wide and 6.5 deep from the plug tip
+  [CONFIRMED by test print: 12.6 and 13.1 were too tight].
 
 ================================================================================
 3. MOTOR LAYOUT AROUND THE CUBE
