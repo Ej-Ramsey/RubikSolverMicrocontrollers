@@ -50,8 +50,9 @@ PLUG_DEPTH = 3.0                # How far the plug goes into the recess, below t
 PLUG_BORE = 12.6                # Hole in the plug, clears the adjustment nut and screw
 # Test-fit version only (the real couplers keep the values above until the
 # fit is confirmed in a real centre piece):
-TEST_PLUG_WIDTH = 17.0          # Outside width of the test plug, walls included
-TEST_PLUG_RADIUS = 4.0          # Its corner radius (the 3.5 mm plug corner, scaled up with the width)
+TEST_PLUG_WIDTH = 16.2          # Outside width of the test plug, walls included (17.0 printed
+                                # one 0.4 mm wall line too big per side)
+TEST_PLUG_RADIUS = 3.6          # Its corner radius (4.0 at 17.0 wide, less the same 0.4 mm)
 TEST_WELL_DEPTH = 6.5           # Hollow for the screw and blue nut, measured up from the plug tip
 BODY_DIAMETER = 18.0            # Round body between the shaft and the neck (fits inside the
                                 # 18.5 mm centre piece, so turning side layers never touch it)
