@@ -124,7 +124,7 @@ BRIDGE_HOLE_OFFSET = 4.0        # Arm-end holes sit at +/- this from the arm cen
 # ============================================================================
 # Screws
 # ============================================================================
-SCREW_CLEARANCE = 3.4           # M3 clearance hole
+SCREW_CLEARANCE = 3.6           # M3 clearance hole (3.4 printed slightly tight on the motor mount test)
 SCREW_PILOT = 2.5               # M3 pilot for screwing straight into plastic (use 4.0 for heat-set inserts)
 PILOT_DEPTH = 8.0               # Depth of pilot holes in rails
 COLUMN_PILOT_DEPTH = 10.0       # Depth of the pilot holes in the column ends

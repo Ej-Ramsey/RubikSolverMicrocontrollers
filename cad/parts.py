@@ -114,13 +114,13 @@ MOUNT_THICKNESS = 6.0           # Plate thickness
 MOUNT_CORNER_RADIUS = 4.0       # Rounding on the plate's four corners
 
 MOUNT_CENTER_HOLE = 22.4        # Fits over the 22 mm boss (0.4 print clearance); a coupler up to ~22 mm passes through
-MOUNT_SCREW_CLEARANCE = 3.4     # M3 clearance hole for the motor screws
+MOUNT_SCREW_CLEARANCE = 3.6     # M3 clearance hole for the motor screws (3.4 printed slightly tight)
 MOUNT_COUNTERBORE_DIAMETER = 6.2  # Counterbore for M3 socket-head screws (head is 5.5)
 MOUNT_COUNTERBORE_DEPTH = 3.2   # Head height 3.0 + 0.2, so heads sit below the cube-side face
                                 # -> M3 x 6 screws: 2.8 through the plate + 3.2 into the motor (4.0 max)
 
 MOUNT_FRAME_HOLE_SPACING = 50.0 # Corner holes for attaching the plate to the frame, centre to centre
-MOUNT_FRAME_HOLE = 3.4          # M3 clearance; outside the motor's 42.3 flange so they can be reached
+MOUNT_FRAME_HOLE = 3.6          # M3 clearance (3.4 printed tight); outside the motor's 42.3 flange so they can be reached
 
 
 # ============================================================================

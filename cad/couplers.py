@@ -74,7 +74,7 @@ MOTOR_BOSS_S = MOTOR_BOSS_HEIGHT - MOUNT_THICKNESS   # Top of the motor's boss, 
 # ============================================================================
 FIXED_BACK_S = 3.0              # Back end of the coupler (gap to the bridge)
 SET_SCREW_S = 10.0              # Set screw position along the shaft
-SET_SCREW_HOLE = 3.4            # M3 set screw clearance, through to the flat
+SET_SCREW_HOLE = 3.6            # M3 set screw clearance, through to the flat (3.4 prints tight)
 NUT_TRAP_WIDTH = 5.8            # M3 nut across flats + clearance
 NUT_TRAP_THICKNESS = 2.7        # M3 nut thickness + clearance
 NUT_TRAP_X = 4.0                # Nut pocket starts this far from the axis (outside the bore)
