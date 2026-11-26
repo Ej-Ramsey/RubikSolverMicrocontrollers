@@ -48,6 +48,11 @@ PLUG_CLEARANCE = 0.2            # Gap between the plug and the recess walls, per
 NECK_OUTSIDE = 1.0              # Neck starts this far outside the cube face
 PLUG_DEPTH = 3.0                # How far the plug goes into the recess, below the rim
 PLUG_BORE = 12.6                # Hole in the plug, clears the adjustment nut and screw
+# Test-fit version only (the real couplers keep the values above until the
+# fit is confirmed in a real centre piece):
+TEST_PLUG_WIDTH = 17.0          # Outside width of the test plug, walls included
+TEST_PLUG_RADIUS = 4.0          # Its corner radius (the 3.5 mm plug corner, scaled up with the width)
+TEST_WELL_DEPTH = 6.5           # Hollow for the screw and blue nut, measured up from the plug tip
 BODY_DIAMETER = 18.0            # Round body between the shaft and the neck (fits inside the
                                 # 18.5 mm centre piece, so turning side layers never touch it)
 
@@ -127,19 +132,25 @@ def local_z(s):
 # ============================================================================
 # Shared front end: body, neck and plug
 # ============================================================================
-def plug_end(face_s, back_s):
+def plug_end(face_s, back_s,
+             plug_half=RECESS_HALF - PLUG_CLEARANCE,
+             plug_radius=RECESS_RADIUS - PLUG_CLEARANCE,
+             well_depth=PLUG_DEPTH + 0.5):
     """Round body from back_s to the cube, neck in the cap seat, hollow plug
-    in the recess. `face_s` = distance from the bridge inside face to the cube face."""
+    in the recess. `face_s` = distance from the bridge inside face to the cube face.
+    plug_half / plug_radius: half-width and corner radius of the plug's outside.
+    well_depth: how deep the hollow goes, measured up from the plug tip.
+    The defaults are the real couplers' plug; make_test_fit passes its own."""
     rim_s = face_s + CAP_SEAT_DEPTH
     neck_s = face_s - NECK_OUTSIDE
+    tip_s = rim_s + PLUG_DEPTH
     body = cyl(BODY_DIAMETER, local_z(back_s), neck_s - back_s + 0.01)
     neck = rounded_square(CAP_SEAT_HALF - NECK_CLEARANCE, CAP_SEAT_RADIUS - NECK_CLEARANCE,
                           local_z(neck_s), rim_s - neck_s)
-    plug = rounded_square(RECESS_HALF - PLUG_CLEARANCE, RECESS_RADIUS - PLUG_CLEARANCE,
-                          local_z(rim_s), PLUG_DEPTH)
+    plug = rounded_square(plug_half, plug_radius, local_z(rim_s), PLUG_DEPTH)
     part = body + neck + plug
     # Hollow plug: clears the screw and the adjustment nut.
-    part -= cyl(PLUG_BORE, local_z(rim_s - 0.5), PLUG_DEPTH + 0.5)
+    part -= cyl(PLUG_BORE, local_z(tip_s - well_depth), well_depth)
     return part
 
 
@@ -233,7 +244,10 @@ def make_park_screw_heads():
 def make_test_fit(face_s):
     """A short slice of the plug end (neck + plug + a thin disc to hold) for
     trying the fit in a real centre piece before printing all six."""
-    part = plug_end(face_s, face_s - NECK_OUTSIDE - 3.0)
+    part = plug_end(face_s, face_s - NECK_OUTSIDE - 3.0,
+                    plug_half=TEST_PLUG_WIDTH / 2,
+                    plug_radius=TEST_PLUG_RADIUS,
+                    well_depth=TEST_WELL_DEPTH)
     part.label = "coupler_test_fit"
     return part
 
